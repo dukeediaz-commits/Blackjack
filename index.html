@@ -71,11 +71,14 @@
     <div class="btn" id="bMic" style="flex:3;" onclick="toggleVoz()">🎤 MICRÓFONO</div>
     <div class="btn" id="bKey" style="flex:none; padding:8px 10px;" onclick="pedirDgKey()">🔑</div>
     <div class="btn" style="flex:none; padding:8px 10px;" onclick="probarKey()">🔬</div>
+    <div class="btn" id="bCam" style="flex:none; padding:8px 10px;" onclick="sacarFoto()">📷</div>
+    <input type="file" id="fotoIn" accept="image/*" capture="environment" style="display:none;" onchange="leerFoto(event)">
+    <canvas id="lienzo" style="display:none;"></canvas>
     <div class="btn" onclick="deshacerUltima()">↩️</div>
   </div>
   <div id="oido" style="text-align:center; font-size:11px; color:#9fc2b0; margin-bottom:2px; min-height:14px;"></div>
   <div id="diag" style="text-align:center; font-size:10px; color:#7aa6c2; margin-bottom:3px;"></div>
-  <div style="text-align:center; font-size:9px; color:#4a7a63; margin-bottom:5px;">v19 · si no dice v19, recargá con un tirón hacia abajo</div>
+  <div style="text-align:center; font-size:9px; color:#4a7a63; margin-bottom:5px;">v20 · si no dice v20, recargá con un tirón hacia abajo</div>
 
   <div class="panel">
     <div class="label">CRUPIER</div>
@@ -451,6 +454,134 @@ const KEYTERMS = ["as","dos","tres","cuatro","cinco","seis","siete","ocho","nuev
 
 function dgKey() { return localStorage.getItem("dg_key") || ""; }
 
+/* ================== CÁMARA CON IA ================== */
+function antKey() { return localStorage.getItem("ant_key") || ""; }
+
+function pedirAntKey() {
+  const k = prompt("Pegá tu API key de Anthropic (console.anthropic.com):", antKey());
+  if (k === null) return false;
+  const limpia = k.trim().replace(/\s+/g, "");
+  if (limpia) { localStorage.setItem("ant_key", limpia); avisoVoz("✅ key de cámara guardada"); render(); return true; }
+  localStorage.removeItem("ant_key"); render(); return false;
+}
+
+function sacarFoto() {
+  if (!antKey() && !pedirAntKey()) return;
+  document.getElementById("fotoIn").click();
+}
+
+function leerFoto(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const lector = new FileReader();
+  lector.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.getElementById("lienzo");
+      const max = 1400;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) { const k = max / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      detectarCartas();
+    };
+    img.src = e.target.result;
+  };
+  lector.readAsDataURL(f);
+  ev.target.value = "";
+}
+
+async function detectarCartas() {
+  const b64 = document.getElementById("lienzo").toDataURL("image/jpeg", 0.85).split(",")[1];
+  const btn = document.getElementById("bCam");
+  btn.textContent = "⏳";
+  avisoVoz("📷 leyendo la mesa…");
+
+  const pedido = state.modo === "mesa"
+    ? 'Devolvé las cartas de cada asiento numerado y del crupier. Formato exacto: {"crupier":["6"],"asientos":{"1":["10","7"],"3":["A","K"]}}. Poné solo los asientos que tengan cartas.'
+    : 'Devolvé las cartas del crupier y las del jugador. Formato exacto: {"crupier":["6"],"jugador":["10","7"]}.';
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": antKey(),
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-5",
+        max_tokens: 400,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } },
+            { type: "text", text:
+              'Foto de una mesa de blackjack. El crupier está arriba; los jugadores abajo. ' +
+              'Cada mano suele tener una etiqueta con su total: usala para verificar que leíste bien. ' +
+              'Ignorá las cartas boca abajo. Rangos válidos: A,2,3,4,5,6,7,8,9,10,J,Q,K. ' +
+              pedido + ' Respondé SOLO el JSON, sin texto alrededor.' },
+          ],
+        }],
+      }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error?.message || ("HTTP " + r.status));
+    }
+    const d = await r.json();
+    const txt = (d.content || []).map(x => x.text || "").join("");
+    const m = txt.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error("no devolvió cartas");
+    aplicarDeteccion(JSON.parse(m[0]));
+  } catch (e) {
+    if (String(e).includes("Failed to fetch")) error("El navegador bloqueó la salida (hosting).");
+    else error("Cámara: " + e.message);
+    avisoVoz("✗ no pude leer la foto");
+  }
+  btn.textContent = "📷";
+}
+
+function aplicarDeteccion(d) {
+  // limpia las manos pero conserva el conteo del zapato
+  state.crupier = nuevoSlot();
+  state.mia = nuevoSlot();
+  state.otros = nuevoSlot();
+  for (let i = 1; i <= 7; i++) state.asientos[i] = nuevoSlot();
+
+  let total = 0;
+  const cargar = (slot, cartas) => {
+    (cartas || []).forEach(c => {
+      const r = String(c).toUpperCase().trim();
+      if (!["A","2","3","4","5","6","7","8","9","10","J","Q","K"].includes(r)) return;
+      slotDe(slot).manos[0].push(r);
+      state.contadas.push(r);
+      state.pila.push({ slot, mano: 0, carta: r });
+      total++;
+    });
+  };
+
+  cargar("crupier", d.crupier);
+  if (state.modo === "mesa") {
+    const as = d.asientos || {};
+    Object.keys(as).forEach(n => {
+      const i = parseInt(n);
+      if (i >= 1 && i <= 7) {
+        state.ocupados[i] = true;
+        cargar(i === state.miAsiento ? "mia" : i, as[n]);
+      }
+    });
+  } else {
+    cargar("mia", d.jugador || d.player);
+  }
+
+  avisoVoz(total ? `📷 leí ${total} cartas — revisalas` : "📷 no encontré cartas");
+  state.activo = { slot: "crupier", mano: 0 };
+  render();
+}
+
 async function probarKey() {
   const key = dgKey();
   if (!key) { error("Primero cargá la key con 🔑"); return; }
@@ -784,6 +915,8 @@ function render() {
     : (conDg ? "🎤 MICRÓFONO · Deepgram" : "🎤 MICRÓFONO · Chrome");
   const bk = document.getElementById("bKey");
   if (bk) { bk.className = "btn" + (conDg ? " on" : ""); }
+  const bc = document.getElementById("bCam");
+  if (bc) { bc.className = "btn" + (antKey() ? " on" : ""); }
   document.getElementById("bAuto").className = "btn" + (state.auto ? " on" : " off");
   document.getElementById("bAuto").textContent = state.auto ? "➡️ AUTO" : "➡️ MANUAL";
   document.getElementById("m1").className = "btn" + (state.modo === "solo" ? " on" : "");
