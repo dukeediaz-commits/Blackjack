@@ -72,13 +72,13 @@
     <div class="btn" id="bKey" style="flex:none; padding:8px 10px;" onclick="pedirDgKey()">🔑</div>
     <div class="btn" style="flex:none; padding:8px 10px;" onclick="probarKey()">🔬</div>
     <div class="btn" id="bCam" style="flex:none; padding:8px 10px;" onclick="sacarFoto()">📷</div>
-    <input type="file" id="fotoIn" accept="image/*" capture="environment" style="display:none;" onchange="leerFoto(event)">
+    <input type="file" id="fotoIn" accept="image/*" style="display:none;" onchange="leerFoto(event)">
     <canvas id="lienzo" style="display:none;"></canvas>
     <div class="btn" onclick="deshacerUltima()">↩️</div>
   </div>
   <div id="oido" style="text-align:center; font-size:11px; color:#9fc2b0; margin-bottom:2px; min-height:14px;"></div>
   <div id="diag" style="text-align:center; font-size:10px; color:#7aa6c2; margin-bottom:3px;"></div>
-  <div style="text-align:center; font-size:9px; color:#4a7a63; margin-bottom:5px;">v20 · si no dice v20, recargá con un tirón hacia abajo</div>
+  <div style="text-align:center; font-size:9px; color:#4a7a63; margin-bottom:5px;">v22 · si no dice v22, recargá con un tirón hacia abajo</div>
 
   <div class="panel">
     <div class="label">CRUPIER</div>
@@ -167,7 +167,7 @@ const state = {
   modo: "solo",
   crupier: nuevoSlot(),
   asientos: {},
-  miAsiento: 3,
+  mios: { 3: true },
   activo: { slot: "mia", mano: 0 },
   contadas: [],
   auto: true,
@@ -180,6 +180,35 @@ for (let i = 1; i <= 7; i++) state.asientos[i] = nuevoSlot();
 state.mia = nuevoSlot();
 state.otros = nuevoSlot();
 state.registro = JSON.parse(localStorage.getItem("bj_registro") || "[]");
+
+/* ===== Persistencia: Android recarga la pestana al volver del casino,
+   asi el conteo y las manos no se pierden ===== */
+const GUARDA = "bj_estado";
+function guardarEstado() {
+  try {
+    localStorage.setItem(GUARDA, JSON.stringify({
+      v: 1, contadas: state.contadas, asientos: state.asientos, mia: state.mia,
+      otros: state.otros, crupier: state.crupier, activo: state.activo,
+      mios: state.mios, ocupados: state.ocupados, modo: state.modo,
+      invertido: state.invertido, auto: state.auto, t: Date.now(),
+    }));
+  } catch (e) {}
+}
+function restaurarEstado() {
+  try {
+    const g = JSON.parse(localStorage.getItem(GUARDA) || "null");
+    if (!g || g.v !== 1) return;
+    // si paso mucho tiempo, el zapato ya no sirve: arrancamos limpios
+    if (Date.now() - (g.t || 0) > 8 * 60 * 60 * 1000) { localStorage.removeItem(GUARDA); return; }
+    ["contadas","asientos","mia","otros","crupier","activo","mios","ocupados"].forEach(k => {
+      if (g[k]) state[k] = g[k];
+    });
+    if (typeof g.modo === "string") state.modo = g.modo;
+    if (typeof g.invertido === "boolean") state.invertido = g.invertido;
+    if (typeof g.auto === "boolean") state.auto = g.auto;
+  } catch (e) {}
+}
+restaurarEstado();
 
 /* ============ CARTAS ============ */
 const hiLoValue = (r) => ["2","3","4","5","6"].includes(r) ? 1 : ["7","8","9"].includes(r) ? 0 : -1;
@@ -268,8 +297,12 @@ function manoActiva() {
   const sl = slotDe(state.activo.slot);
   return sl.manos[state.activo.mano] || sl.manos[0];
 }
+/* En mesa, mis asientos son asientos normales marcados en state.mios */
+const esMio = (s) => state.modo === "solo" ? s === "mia" : !!state.mios[s];
+const misAsientos = () => ordenMesa().filter(i => state.mios[i]);
 function nombreSlot(s, m) {
-  const base = s === "crupier" ? "Crupier" : s === "mia" ? "Mi mano" : s === "otros" ? "Otros (solo cuenta)" : "Asiento " + s;
+  const base = s === "crupier" ? "Crupier" : s === "mia" ? "Mi mano" : s === "otros" ? "Otros (solo cuenta)"
+             : (state.mios[s] ? "⭐ Mi asiento " + s : "Asiento " + s);
   const sl = slotDe(s);
   return sl.manos.length > 1 ? `${base} · mano ${m + 1}` : base;
 }
@@ -283,13 +316,13 @@ function invertirMesa() { state.invertido = !state.invertido; render(); }
 
 function siguienteSlot() {
   const ORD = ordenReparto();
-  const cur = state.activo.slot === "mia" ? state.miAsiento : state.activo.slot;
+  const cur = state.activo.slot;
   const i = ORD.indexOf(cur);
   if (i === -1) return state.activo.slot;
   for (let k = 1; k <= ORD.length; k++) {
     const cand = ORD[(i + k) % ORD.length];
     if (cand === "crupier") return "crupier";
-    if (state.ocupados[cand]) return cand === state.miAsiento ? "mia" : cand;
+    if (state.ocupados[cand] || state.mios[cand]) return cand;
   }
   return "crupier";
 }
@@ -310,7 +343,7 @@ function deshacerUltima() {
 function saltar() { state.activo = { slot: siguienteSlot(), mano: 0 }; render(); }
 
 function toggleOcupado(n) {
-  if (n === state.miAsiento) { error("Tu asiento no se puede vaciar."); return; }
+  if (state.mios[n]) { error("Ese asiento es tuyo. Desmarcalo primero en ⭐."); return; }
   state.ocupados[n] = !state.ocupados[n];
   render();
 }
@@ -383,16 +416,14 @@ function setModo(m) {
   render();
 }
 
-function setMiAsiento(n) {
-  const viejo = state.miAsiento;
-  if (viejo === n) return;
-  // las cartas que estaban en el asiento nuevo pasan al que dejo libre
-  const tmp = state.asientos[n];
-  state.asientos[n] = state.asientos[viejo];
-  state.asientos[viejo] = tmp;
-  state.ocupados[n] = true;
-  state.miAsiento = n;
-  if (state.activo.slot === viejo) state.activo = { slot: "mia", mano: 0 };
+function toggleMio(n) {
+  if (state.mios[n]) {
+    if (misAsientos().length <= 1) { error("Tenés que jugar al menos un asiento."); return; }
+    delete state.mios[n];
+  } else {
+    state.mios[n] = true;
+    state.ocupados[n] = true;
+  }
   render();
 }
 
@@ -406,7 +437,7 @@ state.registro = JSON.parse(localStorage.getItem("bj_registro") || "[]");
   render();
 }
 
-function nuevoZapato() { state.contadas = []; nuevaMano(); }
+function nuevoZapato() { state.contadas = []; localStorage.removeItem(GUARDA); nuevaMano(); }
 
 /* ---------- VOZ ---------- */
 const PALABRAS = {
@@ -478,7 +509,7 @@ function leerFoto(ev) {
     const img = new Image();
     img.onload = () => {
       const c = document.getElementById("lienzo");
-      const max = 1400;
+      const max = 1568; // optimo de la API: mas grande lo achica igual
       let w = img.width, h = img.height;
       if (w > max || h > max) { const k = max / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
       c.width = w; c.height = h;
@@ -491,8 +522,26 @@ function leerFoto(ev) {
   ev.target.value = "";
 }
 
+/* Busca el ultimo objeto JSON balanceado del texto (el modelo razona antes) */
+function ultimoJSON(t) {
+  for (let fin = t.lastIndexOf("}"); fin > -1; fin = t.lastIndexOf("}", fin - 1)) {
+    let prof = 0;
+    for (let i = fin; i >= 0; i--) {
+      if (t[i] === "}") prof++;
+      else if (t[i] === "{") {
+        prof--;
+        if (prof === 0) {
+          const cand = t.slice(i, fin + 1);
+          try { JSON.parse(cand); return cand; } catch (e) { break; }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 async function detectarCartas() {
-  const b64 = document.getElementById("lienzo").toDataURL("image/jpeg", 0.85).split(",")[1];
+  const b64 = document.getElementById("lienzo").toDataURL("image/jpeg", 0.94).split(",")[1];
   const btn = document.getElementById("bCam");
   btn.textContent = "⏳";
   avisoVoz("📷 leyendo la mesa…");
@@ -511,17 +560,24 @@ async function detectarCartas() {
         "anthropic-dangerous-direct-browser-access": "true",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-5",
-        max_tokens: 400,
+        model: "claude-opus-4-8",
+        max_tokens: 1200,
         messages: [{
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } },
             { type: "text", text:
-              'Foto de una mesa de blackjack. El crupier está arriba; los jugadores abajo. ' +
+              'Foto o captura de pantalla de una mesa de blackjack (puede ser un juego online con crupier en vivo). ' +
+              'El crupier está arriba; los jugadores abajo. En los juegos online la carta del crupier suele repetirse ' +
+              'en un recuadro chico en una esquina, con su total al lado: si la ves ahí, usá esa. ' +
               'Cada mano suele tener una etiqueta con su total: usala para verificar que leíste bien. ' +
               'Ignorá las cartas boca abajo. Rangos válidos: A,2,3,4,5,6,7,8,9,10,J,Q,K. ' +
-              pedido + ' Respondé SOLO el JSON, sin texto alrededor.' },
+              pedido +
+              ' Trabajá en dos pasos. PASO 1: describí en pocas líneas qué cartas ves en cada posición y ' +
+              'contrastá cada mano con su etiqueta de total; si no coinciden, corregí tu lectura antes de seguir. ' +
+              'PASO 2: en la última línea, el JSON solo, sin comillas de código y sin nada después. ' +
+              'Agregá al JSON la clave "seguro": false si alguna carta te quedó dudosa, o true si las leíste todas con claridad. ' +
+              'Si no llegás a distinguir ninguna carta, devolvé igual el JSON vacío correspondiente.' },
           ],
         }],
       }),
@@ -533,9 +589,11 @@ async function detectarCartas() {
     }
     const d = await r.json();
     const txt = (d.content || []).map(x => x.text || "").join("");
-    const m = txt.match(/\{[\s\S]*\}/);
-    if (!m) throw new Error("no devolvió cartas");
-    aplicarDeteccion(JSON.parse(m[0]));
+    const crudo = ultimoJSON(txt);
+    if (!crudo) throw new Error("respondió: " + txt.slice(-90));
+    const det = JSON.parse(crudo);
+    aplicarDeteccion(det);
+    if (det.seguro === false) error("Leyó con dudas — revisá las cartas antes de jugar.");
   } catch (e) {
     if (String(e).includes("Failed to fetch")) error("El navegador bloqueó la salida (hosting).");
     else error("Cámara: " + e.message);
@@ -570,7 +628,7 @@ function aplicarDeteccion(d) {
       const i = parseInt(n);
       if (i >= 1 && i <= 7) {
         state.ocupados[i] = true;
-        cargar(i === state.miAsiento ? "mia" : i, as[n]);
+        cargar(i, as[n]);
       }
     });
   } else {
@@ -836,12 +894,16 @@ async function toggleVoz() {
 
 /* ---------- REGISTRO DE MANOS ---------- */
 function anotar(res) {
-  const mano = state.mia.manos[0];
+  let mano = [], asi = null;
+  if (state.modo === "solo") mano = state.mia.manos[0];
+  else if (esMio(state.activo.slot)) { mano = manoActiva(); asi = state.activo.slot; }
+  else { const a = misAsientos()[0]; if (a) { mano = state.asientos[a].manos[0]; asi = a; } }
   const rc = state.contadas.reduce((a, r) => a + hiLoValue(r), 0);
   const rest = Math.max(0.5, 8 - state.contadas.length / 52);
   state.registro.push({
     r: res,
     t: mano.length ? handValue(mano) : null,
+    a: asi,
     up: state.crupier.manos[0][0] || null,
     tc: Math.round((rc / rest) * 10) / 10,
     h: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
@@ -907,6 +969,7 @@ function dibujarSlot(s, opciones = {}) {
 }
 
 function render() {
+  guardarEstado();
   const bm = document.getElementById("bMic");
   bm.className = "btn" + (state.oyendo ? " r" : "");
   const conDg = !!dgKey();
@@ -932,7 +995,7 @@ function render() {
   }
 
   if (state.modo === "mesa") {
-    let vis = ordenMesa().filter(i => state.ocupados[i] || i === state.miAsiento);
+    let vis = ordenMesa().filter(i => state.ocupados[i] || state.mios[i]);
     const n = vis.length;
     let h = "";
     vis.forEach((i, pos) => {
@@ -940,8 +1003,8 @@ function render() {
       const centro = (n - 1) / 2;
       const dist = centro === 0 ? 0 : Math.abs(pos - centro) / centro;
       const baja = Math.round((1 - dist * dist) * 18);
-      const mio = i === state.miAsiento;
-      const key = mio ? "mia" : i;
+      const mio = !!state.mios[i];
+      const key = i;
       const sl = slotDe(key);
       let cuerpo = sl.manos.map((mano, m) => {
         const act = state.activo.slot === key && state.activo.mano === m;
@@ -966,11 +1029,11 @@ function render() {
     });
     document.getElementById("asientos").innerHTML = `<div class="arco">${h}</div>`;
     document.getElementById("yoSel").innerHTML = [1,2,3,4,5,6,7].map(n =>
-      `<div class="btn${state.miAsiento === n ? " on" : ""}" style="padding:4px 0; font-size:11px;" onclick="setMiAsiento(${n})">${n}</div>`
+      `<div class="btn${state.mios[n] ? " on" : ""}" style="padding:4px 0; font-size:11px;" onclick="toggleMio(${n})">${state.mios[n] ? "⭐" : ""}${n}</div>`
     ).join("");
     document.getElementById("bInv").textContent = state.invertido ? "7→1" : "1→7";
     document.getElementById("ocupSel").innerHTML = [1,2,3,4,5,6,7].map(n =>
-      `<div class="btn${state.ocupados[n] || n === state.miAsiento ? " on" : " off"}" style="padding:6px 0;" onclick="toggleOcupado(${n})">${n}</div>`
+      `<div class="btn${state.ocupados[n] || state.mios[n] ? " on" : " off"}" style="padding:6px 0;" onclick="toggleOcupado(${n})">${n}</div>`
     ).join("");
   }
 
@@ -1018,12 +1081,29 @@ function render() {
       }).join("")
     : `<div style="color:#7f9c8c; font-size:11px;">Todavía no anotaste ninguna mano.</div>`;
 
-  // Recomendacion — siempre sobre MI mano activa
+  // Recomendacion — sobre MI mano activa; si la activa no es mia, la primera mia sin cerrar
   const panel = document.getElementById("rec");
-  const miSlot = state.mia;
-  const miMano = (state.activo.slot === "mia") ? manoActiva() : miSlot.manos[0];
-  const miEstado = (state.activo.slot === "mia") ? miSlot.estados[state.activo.mano] : miSlot.estados[0];
+  let recSlot = null, recMano = 0;
+  if (esMio(state.activo.slot)) {
+    recSlot = state.activo.slot; recMano = state.activo.mano;
+  } else if (state.modo === "solo") {
+    recSlot = "mia"; recMano = 0;
+  } else {
+    for (const a of misAsientos()) {
+      const idx = state.asientos[a].estados.findIndex(e => e === "jugando");
+      if (idx > -1) { recSlot = a; recMano = idx; break; }
+    }
+    if (recSlot === null && misAsientos().length) { recSlot = misAsientos()[0]; recMano = 0; }
+  }
+
+  const miSlot = recSlot === null ? null : slotDe(recSlot);
+  const miMano = miSlot ? (miSlot.manos[recMano] || miSlot.manos[0]) : [];
+  const miEstado = miSlot ? miSlot.estados[recMano] : "jugando";
   const up = state.crupier.manos[0][0];
+  // con varios asientos propios, aclarar cual
+  const varias = state.modo === "mesa" && (misAsientos().length > 1 || (miSlot && miSlot.manos.length > 1));
+  const pref = varias && recSlot !== null
+    ? "A" + recSlot + (miSlot.manos.length > 1 ? "·m" + (recMano + 1) : "") + " · " : "";
 
   let txt = null, col = "#7aa6c2";
   if (miEstado === "plantado") { txt = "PLANTADO"; col = "#4fae63"; }
@@ -1034,10 +1114,11 @@ function render() {
         : txt === "DOBLAR" ? "#c9a227" : txt === "DIVIDIR" ? "#9b6dc4" : "#c0563f";
   }
   if (txt) {
+    const full = pref + txt;
     panel.style.display = "block";
     panel.style.borderColor = col; panel.style.color = col;
-    panel.style.fontSize = txt.length > 12 ? "18px" : "28px";
-    panel.textContent = txt;
+    panel.style.fontSize = full.length > 12 ? "18px" : "28px";
+    panel.textContent = full;
   } else panel.style.display = "none";
 }
 
