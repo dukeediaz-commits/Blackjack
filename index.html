@@ -80,7 +80,7 @@
   </div>
   <div id="oido" style="text-align:center; font-size:11px; color:#9fc2b0; margin-bottom:2px; min-height:14px;"></div>
   <div id="diag" style="text-align:center; font-size:10px; color:#7aa6c2; margin-bottom:3px;"></div>
-  <div style="text-align:center; font-size:9px; color:#4a7a63; margin-bottom:5px;">v22 · si no dice v22, recargá con un tirón hacia abajo</div>
+  <div id="ver" style="text-align:center; font-size:9px; color:#4a7a63; margin-bottom:5px;"></div>
 
   <div class="panel">
     <div class="label">CRUPIER</div>
@@ -94,7 +94,7 @@
     <div id="zonaMesa" style="display:none;">
       <div id="asientos"></div>
       <div style="display:flex; align-items:center; gap:5px; margin-top:8px;">
-        <span style="font-size:10px; color:#9fc2b0; font-weight:bold; white-space:nowrap;">⭐ ASIENTO</span>
+        <span style="font-size:10px; color:#9fc2b0; font-weight:bold; white-space:nowrap;">⭐ MIS ASIENTOS</span>
         <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; flex:1;" id="yoSel"></div>
         <div class="btn" id="bInv" style="flex:none; padding:4px 7px; font-size:11px;" onclick="invertirMesa()">↔️</div>
       </div>
@@ -185,6 +185,7 @@ state.registro = JSON.parse(localStorage.getItem("bj_registro") || "[]");
 
 /* ===== Persistencia: Android recarga la pestana al volver del casino,
    asi el conteo y las manos no se pierden ===== */
+const VERSION = 30;
 const GUARDA = "bj_estado";
 function guardarEstado() {
   try {
@@ -211,6 +212,7 @@ function restaurarEstado() {
   } catch (e) {}
 }
 restaurarEstado();
+try { document.getElementById("ver").textContent = "v" + VERSION + " · si no dice v" + VERSION + ", recargá con un tirón hacia abajo"; } catch (e) {}
 
 /* ============ CARTAS ============ */
 const hiLoValue = (r) => ["2","3","4","5","6"].includes(r) ? 1 : ["7","8","9"].includes(r) ? 0 : -1;
