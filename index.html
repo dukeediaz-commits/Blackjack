@@ -72,6 +72,8 @@
     <div class="btn" id="bKey" style="flex:none; padding:8px 10px;" onclick="pedirDgKey()">🔑</div>
     <div class="btn" style="flex:none; padding:8px 10px;" onclick="probarKey()">🔬</div>
     <div class="btn" id="bCam" style="flex:none; padding:8px 10px;" onclick="sacarFoto()">📷</div>
+    <div class="btn" id="bGal" style="flex:none; padding:8px 10px;" onclick="elegirFoto()">🖼️</div>
+    <input type="file" id="fotoCam" accept="image/*" capture="environment" style="display:none;" onchange="leerFoto(event)">
     <input type="file" id="fotoIn" accept="image/*" style="display:none;" onchange="leerFoto(event)">
     <canvas id="lienzo" style="display:none;"></canvas>
     <div class="btn" onclick="deshacerUltima()">↩️</div>
@@ -496,7 +498,13 @@ function pedirAntKey() {
   localStorage.removeItem("ant_key"); render(); return false;
 }
 
+/* 📷 abre la camara directo — para fotografiar la pantalla del otro celular */
 function sacarFoto() {
+  if (!antKey() && !pedirAntKey()) return;
+  document.getElementById("fotoCam").click();
+}
+/* 🖼️ abre la galeria — para capturas de pantalla */
+function elegirFoto() {
   if (!antKey() && !pedirAntKey()) return;
   document.getElementById("fotoIn").click();
 }
