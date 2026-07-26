@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎰 Blackjack — Mesa</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#0b3d2e; color:#f1ead9; padding:7px; }
+  .container { max-width:640px; margin:0 auto; padding-bottom:40px; }
+  h1 { display:none; }
+  .panel { background:#0f2e22; border:1px solid #2f5c46; border-radius:8px; padding:9px; margin-bottom:7px; }
+  .label { font-size:10px; color:#9fc2b0; font-weight:bold; margin-bottom:6px; letter-spacing:.4px; }
+  .fila { display:flex; gap:6px; }
+  .fila > * { flex:1; }
+  .btn { padding:8px 5px; border:2px solid #2f5c46; background:#0f2e22; color:#9fc2b0; border-radius:6px; font-weight:bold; cursor:pointer; font-size:12px; text-align:center; }
+  .btn.on { background:#4fae63; color:#0b3d2e; border-color:#4fae63; }
+  .btn.y { background:#c9a227; color:#0b3d2e; border-color:#c9a227; }
+  .btn.r { background:#c0563f; color:#fff; border-color:#c0563f; }
+  .btn.off { opacity:.35; }
+
+  .slot { background:#0f2e22; border:2px solid #2f5c46; border-radius:8px; padding:8px 7px; cursor:pointer; margin-bottom:6px; }
+  .slot.act { border-color:#c9a227; background:#1a4433; }
+  .slot.mio { border-color:#4fae63; }
+  .slot.mio.act { border-color:#c9a227; }
+  .cab { font-size:11px; color:#9fc2b0; font-weight:bold; display:flex; justify-content:space-between; align-items:center; gap:6px; }
+  .tot { font-size:16px; font-weight:bold; color:#c9a227; }
+  .cartas { margin-top:4px; display:flex; flex-wrap:wrap; gap:4px; min-height:20px; }
+  .mini { background:#4fae63; color:#0b3d2e; border-radius:4px; padding:4px 7px; font-size:12px; font-weight:bold; cursor:pointer; }
+  .mini.d { background:#7aa6c2; }
+  .badge { font-size:9px; padding:2px 5px; border-radius:3px; font-weight:bold; }
+  .b-plant { background:#4fae63; color:#0b3d2e; }
+  .b-dobl { background:#c9a227; color:#0b3d2e; }
+  .b-pas { background:#c0563f; color:#fff; }
+  .asientos { display:block; }
+  .arco { display:flex; gap:4px; align-items:flex-start; margin-top:4px; }
+  .arco > div { flex:1; min-width:0; }
+  .as { background:#0f2e22; border:2px solid #2f5c46; border-radius:5px; padding:3px 1px 4px; cursor:pointer; text-align:center; }
+  .as.act { border-color:#c9a227; background:#1f4d38; box-shadow:0 0 0 2px rgba(201,162,39,.3); }
+  .as.mio { border-color:#4fae63; }
+  .as.mio.act { border-color:#c9a227; }
+  .as-n { font-size:9px; color:#9fc2b0; font-weight:bold; letter-spacing:.3px; }
+  .as-t { font-size:13px; font-weight:bold; color:#c9a227; line-height:1.2; }
+  .as-t.bust { color:#e06a4f; }
+  .chip { display:block; background:#4fae63; color:#0b3d2e; border-radius:2px; padding:1px 0; font-size:9px; font-weight:bold; margin-top:2px; cursor:pointer; }
+  .as-sep { border-top:1px dashed #2f5c46; margin-top:4px; padding-top:2px; }
+  .as-e { font-size:8px; padding:1px 0; border-radius:2px; margin-top:2px; font-weight:bold; }
+
+  .teclado { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .tecla { padding:12px 0; background:#0f2e22; border:2px solid #4fae63; color:#4fae63; border-radius:6px; font-size:17px; font-weight:bold; cursor:pointer; text-align:center; user-select:none; }
+  .tecla:active { background:#4fae63; color:#0b3d2e; }
+
+  .rec { border-radius:7px; padding:10px; text-align:center; font-size:24px; font-weight:bold; margin-bottom:7px; border:3px solid; background:#0f2e22; }
+  .count { font-size:18px; font-weight:bold; color:#c9a227; }
+  .err { background:#b5432b; padding:9px; border-radius:5px; margin-bottom:10px; font-size:12px; }
+  details { font-size:12px; color:#9fc2b0; } summary { cursor:pointer; padding:4px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div id="err" class="err" style="display:none;"></div>
+
+  <div class="fila" style="margin-bottom:6px;">
+    <div class="btn" id="m1" onclick="setModo('solo')">👤 1</div>
+    <div class="btn" id="m7" onclick="setModo('mesa')">👥 MESA</div>
+    <div class="btn" id="bAuto" onclick="toggleAuto()">➡️ AUTO</div>
+    <div class="btn" onclick="saltar()">⏭️</div>
+  </div>
+
+  <div class="fila" style="margin-bottom:6px;">
+    <div class="btn" id="bMic" style="flex:3;" onclick="toggleVoz()">🎤 MICRÓFONO</div>
+    <div class="btn" id="bKey" style="flex:none; padding:8px 10px;" onclick="pedirDgKey()">🔑</div>
+    <div class="btn" style="flex:none; padding:8px 10px;" onclick="probarKey()">🔬</div>
+    <div class="btn" id="bCam" style="flex:none; padding:8px 10px;" onclick="sacarFoto()">📷</div>
+    <div class="btn" id="bGal" style="flex:none; padding:8px 10px;" onclick="elegirFoto()">🖼️</div>
+    <input type="file" id="fotoCam" accept="image/*" capture="environment" style="display:none;" onchange="leerFoto(event)">
+    <input type="file" id="fotoIn" accept="image/*" style="display:none;" onchange="leerFoto(event)">
+    <canvas id="lienzo" style="display:none;"></canvas>
+    <div class="btn" onclick="deshacerUltima()">↩️</div>
+  </div>
+  <div id="oido" style="text-align:center; font-size:11px; color:#9fc2b0; margin-bottom:2px; min-height:14px;"></div>
+  <div id="diag" style="text-align:center; font-size:10px; color:#7aa6c2; margin-bottom:3px;"></div>
+  <div id="ver" style="text-align:center; font-size:9px; color:#4a7a63; margin-bottom:5px;"></div>
+
+  <div class="panel">
+    <div class="label">CRUPIER</div>
+    <div id="slotCrupier"></div>
+    <div id="zonaMia">
+      <div class="label" style="margin-top:8px;">MI MANO</div>
+      <div id="misManos"></div>
+      <div class="label" style="margin-top:8px;">OTROS EN LA MESA — solo cuentan</div>
+      <div id="zonaOtros"></div>
+    </div>
+    <div id="zonaMesa" style="display:none;">
+      <div id="asientos"></div>
+      <div style="display:flex; align-items:center; gap:5px; margin-top:8px;">
+        <span style="font-size:10px; color:#9fc2b0; font-weight:bold; white-space:nowrap;">⭐ MIS ASIENTOS</span>
+        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; flex:1;" id="yoSel"></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:5px; margin-top:5px;">
+        <span style="font-size:10px; color:#9fc2b0; font-weight:bold; white-space:nowrap;">🪑 SENTADOS</span>
+        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:3px; flex:1;" id="ocupSel2"></div>
+      </div>
+      <div style="text-align:center; font-size:10px; color:#7a9b8a; margin-top:8px; line-height:1.4;">En pantalla el <b>7</b> va a la izquierda y el <b>1</b> a la derecha (como tu casino) · el reparto siempre empieza por el <b>1</b></div>
+    </div>
+  </div>
+
+  <div style="font-size:11px; color:#9fc2b0; text-align:center; margin-bottom:6px;">
+    RC <b class="count" id="rc" style="font-size:15px;">0</b> &nbsp;·&nbsp;
+    TC <b class="count" id="tc" style="font-size:15px;">0</b> &nbsp;·&nbsp;
+    <span id="info">0 cartas</span>
+  </div>
+
+  <div style="display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; color:#9fc2b0; margin-bottom:8px;">
+    <span>Mazos del zapato:</span>
+    <div class="btn" id="mz8" style="flex:none; padding:4px 12px; font-size:12px;" onclick="setMazos(8)">8</div>
+    <div class="btn" id="mz6" style="flex:none; padding:4px 12px; font-size:12px;" onclick="setMazos(6)">6</div>
+    <div class="btn" id="mz4" style="flex:none; padding:4px 12px; font-size:12px;" onclick="setMazos(4)">4</div>
+  </div>
+
+  <div id="rec" class="rec" style="display:none;"></div>
+
+  <div class="panel">
+    <div class="label">CARGANDO EN: <span id="destino" style="color:#c9a227;">—</span></div>
+    <div class="teclado" id="teclado"></div>
+  </div>
+
+  <div class="fila" style="margin-bottom:6px;">
+    <div class="btn" id="bDiv" onclick="dividir()">✂️ Dividir</div>
+    <div class="btn" id="bDob" onclick="doblar()">2️⃣ Doblar</div>
+    <div class="btn" id="bPla" onclick="plantarse()">✋ Plantar</div>
+  </div>
+  <div style="display:none;"><span id="quien"></span></div>
+
+  <div class="fila" style="margin-bottom:6px;">
+    <div class="btn" style="background:#2d6b45; color:#eafff0; border-color:#4fae63;" onclick="anotar('G')">✅ Gané</div>
+    <div class="btn" style="background:#7a3527; color:#ffeae6; border-color:#c0563f;" onclick="anotar('P')">❌ Perdí</div>
+    <div class="btn" onclick="anotar('E')">🤝 Empate</div>
+  </div>
+
+  <div class="fila" style="margin-bottom:6px;">
+    <div class="btn y" onclick="nuevaMano()">🔄 Nueva mano</div>
+    <div class="btn r" onclick="nuevoZapato()">♻️ Nuevo zapato</div>
+  </div>
+
+  <details class="panel">
+    <summary>📋 Registro de manos</summary>
+    <div id="resumen" style="font-size:12px; margin:10px 0 8px; text-align:center;"></div>
+    <div id="listaReg" style="max-height:230px; overflow-y:auto;"></div>
+    <div class="btn r" style="margin-top:10px;" onclick="borrarRegistro()">🗑️ Borrar registro</div>
+  </details>
+
+  <details class="panel" id="selAsiento" style="display:none;">
+    <summary>⚙️ Configurar asientos</summary>
+    <div class="label" style="margin-top:10px;">OCUPADOS (los apagados se saltan)</div>
+    <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px;" id="ocupSel"></div>
+  </details>
+
+  <details class="panel">
+    <summary>❔ Cómo se usa</summary>
+    <div style="margin-top:8px; line-height:1.7;">
+      Tocás un asiento y cargás sus cartas con el teclado. Para sacar una carta, tocala.<br><br>
+      Con <b>AUTO</b> encendido, después de cada carta salta solo al asiento siguiente: 1, 2, 3… 7, crupier, y vuelve a empezar. Igual que reparte el crupier. Apagalo cuando empiecen a pedir cartas sueltas.<br><br>
+      <b>⏭️</b> pasa al siguiente sin cargar nada — usalo en la carta tapada del crupier.<br><br>
+      Al barajar, tocá <b>Nuevo zapato</b>.<br><br>
+      <b>🎤 Micrófono:</b> tocá el asiento y decí las cartas — <i>"tres, cuatro"</i>. Solo hay 13 palabras: as, dos, tres, cuatro, cinco, seis, siete, ocho, nueve, diez, jota, dama, rey. Para el as decí <b>"as"</b>, nunca "a".<br>
+      Con AUTO encendido, cada carta que decís pasa al asiento siguiente: decí el reparto entero de corrido.<br><br>
+      <b>Las 3 palabras de mando:</b><br>
+      · <b>"paso"</b> — avanza un asiento sin cargar carta. Para saltear una silla vacía, o para pasar al siguiente cuando terminaste con uno.<br>
+      · <b>"stop"</b> — se queda clavado en ese asiento. Todas las cartas que digas van ahí hasta que digas "paso". Es para cuando uno pide varias seguidas.<br>
+      · <b>"auto"</b> — vuelve a avanzar solo con cada carta.<br>
+      · <b>"borrar"</b> — saca la última carta.<br><br>
+      <b>🔑 Deepgram:</b> pegando tu key ahí, el micrófono usa un motor mucho más preciso, al que se le avisa de antemano que solo van a venir nombres de cartas. Sin key funciona igual, pero con el motor de Chrome, que falla más.
+    </div>
+  </details>
+</div>
+
+<script>
+/* ============ MODELO ============ */
+/* Cada slot tiene manos: [[cartas]...] y estados paralelos */
+const nuevoSlot = () => ({ manos: [[]], estados: ["jugando"] });
+
+const state = {
+  modo: "solo",
+  crupier: nuevoSlot(),
+  asientos: {},
+  mios: { 3: true },
+  activo: { slot: "mia", mano: 0 },
+  contadas: [],
+  auto: true,
+  ocupados: { 1:true, 2:true, 3:true, 4:true, 5:true, 6:true, 7:true },
+  mazos: 8,
+  pila: [],
+  oyendo: false,
+  invertido: false,
+};
+for (let i = 1; i <= 7; i++) state.asientos[i] = nuevoSlot();
+state.mia = nuevoSlot();
+state.otros = nuevoSlot();
+state.registro = JSON.parse(localStorage.getItem("bj_registro") || "[]");
+
+/* ===== Persistencia: Android recarga la pestana al volver del casino,
+   asi el conteo y las manos no se pierden ===== */
+const VERSION = 42;
+const GUARDA = "bj_estado";
+function guardarEstado() {
+  try {
+    localStorage.setItem(GUARDA, JSON.stringify({
+      v: 1, contadas: state.contadas, asientos: state.asientos, mia: state.mia,
+      otros: state.otros, crupier: state.crupier, activo: state.activo,
+      mios: state.mios, ocupados: state.ocupados, modo: state.modo,
+      invertido: state.invertido, auto: state.auto, mazos: state.mazos, t: Date.now(),
+    }));
+  } catch (e) {}
+}
+function restaurarEstado() {
+  try {
+    const g = JSON.parse(localStorage.getItem(GUARDA) || "null");
+    if (!g || g.v !== 1) return;
+    // si paso mucho tiempo, el zapato ya no sirve: arrancamos limpios
+    if (Date.now() - (g.t || 0) > 8 * 60 * 60 * 1000) { localStorage.removeItem(GUARDA); return; }
+    ["contadas","asientos","mia","otros","crupier","activo","mios","ocupados"].forEach(k => {
+      if (g[k]) state[k] = g[k];
+    });
+    if (typeof g.modo === "string") state.modo = g.modo;
+    // el orden NO se guarda: siempre arranca 1,2,3...,7 (el usuario lo quiere así)
+    state.invertido = false;
+    if (typeof g.auto === "boolean") state.auto = g.auto;
+    if (typeof g.mazos === "number") state.mazos = g.mazos;
+  } catch (e) {}
+}
+restaurarEstado();
+try { document.getElementById("ver").textContent = "v" + VERSION + " · si no dice v" + VERSION + ", recargá con un tirón hacia abajo"; } catch (e) {}
+
+/* ============ CARTAS ============ */
+const hiLoValue = (r) => ["2","3","4","5","6"].includes(r) ? 1 : ["7","8","9"].includes(r) ? 0 : -1;
+
+const handValue = (cards) => {
+  let total = 0, aces = 0;
+  cards.forEach(r => {
+    if (r === "A") { aces++; total += 11; }
+    else if (["K","Q","J"].includes(r)) total += 10;
+    else total += parseInt(r);
+  });
+  while (total > 21 && aces > 0) { total -= 10; aces--; }
+  return total;
+};
+
+const upVal = (r) => r === "A" ? 11 : ["K","Q","J"].includes(r) ? 10 : parseInt(r);
+
+const isSoft = (cards) => {
+  let total = 0, aces = 0;
+  cards.forEach(r => {
+    if (r === "A") { aces++; total += 11; }
+    else if (["K","Q","J"].includes(r)) total += 10;
+    else total += parseInt(r);
+  });
+  let a = aces;
+  while (total > 21 && a > 0) { total -= 10; a--; }
+  return aces > 0 && a > 0;
+};
+
+/* Estrategia basica 8 mazos, S17, DAS — verificada, 520 casos */
+const recommend = (playerCards, dealerUp) => {
+  if (!dealerUp || playerCards.length < 2) return null;
+  const total = handValue(playerCards);
+  if (total > 21) return "SE PASÓ";
+  const d = upVal(dealerUp);
+  const first = playerCards.length === 2;
+  const dbl = (yes) => first ? (yes ? "DOBLAR" : null) : null;
+
+  if (first) {
+    const a = playerCards[0], b = playerCards[1];
+    const same = a === b || (["10","J","Q","K"].includes(a) && ["10","J","Q","K"].includes(b));
+    if (same) {
+      const p = upVal(a);
+      if (p === 11) return "DIVIDIR";
+      if (p === 10) return "PLANTARSE";
+      if (p === 9) return (d <= 6 || d === 8 || d === 9) ? "DIVIDIR" : "PLANTARSE";
+      if (p === 8) return "DIVIDIR";
+      if (p === 7) return d <= 7 ? "DIVIDIR" : "PEDIR";
+      if (p === 6) return d <= 6 ? "DIVIDIR" : "PEDIR";
+      if (p === 5) return d <= 9 ? "DOBLAR" : "PEDIR";
+      if (p === 4) return (d === 5 || d === 6) ? "DIVIDIR" : "PEDIR";
+      if (p === 3 || p === 2) return d <= 7 ? "DIVIDIR" : "PEDIR";
+    }
+  }
+
+  if (isSoft(playerCards)) {
+    if (total >= 19) return "PLANTARSE";
+    if (total === 18) {
+      if (d >= 3 && d <= 6) return dbl(true) || "PLANTARSE";
+      if (d === 2 || d === 7 || d === 8) return "PLANTARSE";
+      return "PEDIR";
+    }
+    if (total === 17) return (d >= 3 && d <= 6) ? (dbl(true) || "PEDIR") : "PEDIR";
+    if (total === 16 || total === 15) return (d >= 4 && d <= 6) ? (dbl(true) || "PEDIR") : "PEDIR";
+    if (total === 14 || total === 13) return (d === 5 || d === 6) ? (dbl(true) || "PEDIR") : "PEDIR";
+    return "PEDIR";
+  }
+
+  if (total >= 17) return "PLANTARSE";
+  if (total >= 13) return d <= 6 ? "PLANTARSE" : "PEDIR";
+  if (total === 12) return (d >= 4 && d <= 6) ? "PLANTARSE" : "PEDIR";
+  if (total === 11) return d <= 10 ? (dbl(true) || "PEDIR") : "PEDIR";
+  if (total === 10) return d <= 9 ? (dbl(true) || "PEDIR") : "PEDIR";
+  if (total === 9) return (d >= 3 && d <= 6) ? (dbl(true) || "PEDIR") : "PEDIR";
+  return "PEDIR";
+};
+
+/* ============ ACCESO ============ */
+function slotDe(s) {
+  if (s === "crupier") return state.crupier;
+  if (s === "mia") return state.mia;
+  if (s === "otros") return state.otros;
+  return state.asientos[s];
+}
+function manoActiva() {
+  const sl = slotDe(state.activo.slot);
+  return sl.manos[state.activo.mano] || sl.manos[0];
+}
+/* En mesa, mis asientos son asientos normales marcados en state.mios */
+const esMio = (s) => state.modo === "solo" ? s === "mia" : !!state.mios[s];
+const misAsientos = () => ordenMesa().filter(i => state.mios[i]);
+function nombreSlot(s, m) {
+  const base = s === "crupier" ? "Crupier" : s === "mia" ? "Mi mano" : s === "otros" ? "Otros (solo cuenta)"
+             : (state.mios[s] ? "⭐ Mi asiento " + s : "Asiento " + s);
+  const sl = slotDe(s);
+  return sl.manos.length > 1 ? `${base} · mano ${m + 1}` : base;
+}
+
+/* ============ ACCIONES ============ */
+/* Orden de REPARTO (funcional): siempre arranca en el 1 y termina en el 7 */
+function ordenMesa() {
+  return [1, 2, 3, 4, 5, 6, 7];
+}
+/* Orden VISUAL en pantalla, de izquierda a derecha: 7 a la izquierda, 1 a la derecha */
+const ORDEN_VISUAL = [7, 6, 5, 4, 3, 2, 1];
+function ordenReparto() { return [...ordenMesa(), "crupier"]; }
+/* El reparto arranca por el primer asiento en juego y el crupier va ULTIMO */
+function primerSlot() {
+  if (state.modo === "solo") return "mia";
+  for (const i of ordenMesa()) if (state.ocupados[i] || state.mios[i]) return i;
+  return "crupier";
+}
+function invertirMesa() { state.invertido = !state.invertido; render(); }
+
+function siguienteSlot() {
+  if (state.modo === "solo") {
+    const O = ["mia", "otros", "crupier"];
+    const i = O.indexOf(state.activo.slot);
+    return O[(i + 1) % O.length];
+  }
+  const ORD = ordenReparto();
+  const cur = state.activo.slot;
+  const i = ORD.findIndex(x => String(x) === String(cur)); // tolera 6 o "6"
+  if (i === -1) return primerSlot();
+  for (let k = 1; k <= ORD.length; k++) {
+    const cand = ORD[(i + k) % ORD.length];
+    if (cand === "crupier") return "crupier";
+    if (state.ocupados[cand] || state.mios[cand]) return cand;
+  }
+  return "crupier";
+}
+
+function deshacerUltima() {
+  const u = state.pila.pop();
+  if (!u) { error("No hay nada para borrar."); return; }
+  const arr = slotDe(u.slot).manos[u.mano];
+  const i = arr ? arr.lastIndexOf(u.carta) : -1;
+  if (i > -1) arr.splice(i, 1);
+  const j = state.contadas.lastIndexOf(u.carta);
+  if (j > -1) state.contadas.splice(j, 1);
+  state.activo = { slot: u.slot, mano: u.mano };
+  avisoVoz("↩️ borré " + u.carta);
+  render();
+}
+
+/* PASO = avanzar un asiento a mano (no toca el modo AUTO/FIJO) */
+function saltar() {
+  const sl = slotDe(state.activo.slot);
+  let next;
+  if (sl && sl.manos && state.activo.mano + 1 < sl.manos.length) {
+    next = { slot: state.activo.slot, mano: state.activo.mano + 1 }; // otra mano dividida en el mismo asiento
+  } else {
+    next = { slot: siguienteSlot(), mano: 0 };
+  }
+  state.activo = next;
+  avisoVoz("➡️ " + nombreSlot(next.slot, next.mano));
+  autoDividirSiToca();
+  render();
+}
+
+/* STOP = quedarse en este asiento; las cartas siguen cargando acá */
+function fijar() {
+  state.auto = false;
+  avisoVoz("🔒 fijo en " + nombreSlot(state.activo.slot, state.activo.mano) + " — decí «paso» para avanzar");
+  render();
+}
+
+/* AUTO = volver a avanzar solo con cada carta */
+function autoSi() {
+  state.auto = true;
+  avisoVoz("➡️ automático");
+  render();
+}
+
+function toggleOcupado(n) {
+  if (state.mios[n]) { error("Ese asiento es tuyo. Desmarcalo primero en ⭐."); return; }
+  state.ocupados[n] = !state.ocupados[n];
+  render();
+}
+
+function toggleAuto() { state.auto = !state.auto; render(); }
+
+function agregarCarta(c) {
+  manoActiva().push(c);
+  state.contadas.push(c);
+  state.pila.push({ slot: state.activo.slot, mano: state.activo.mano, carta: c });
+  const _slAct = slotDe(state.activo.slot);
+  if (state.auto && state.modo === "mesa" && _slAct.manos.length === 1) {
+    state.activo = { slot: siguienteSlot(), mano: 0 };  // si está dividido, la carta se queda en la mano
+    autoDividirSiToca();  // si el asiento nuevo es tuyo y es par para dividir, se parte solo
+  }
+  render();
+}
+
+function quitarCarta(s, m, i) {
+  const arr = slotDe(s).manos[m];
+  const c = arr[i];
+  if (c === undefined) return;
+  arr.splice(i, 1);
+  const j = state.contadas.lastIndexOf(c);
+  if (j > -1) state.contadas.splice(j, 1);
+  render();
+}
+
+function setMazos(n) { state.mazos = n; guardarEstado(); render(); }
+/* Si llegás a TU asiento y tenés un par que la estrategia manda dividir, se divide solo.
+   Solo cuando el crupier ya muestra carta (fase de juego), nunca durante el reparto. */
+function autoDividirSiToca() {
+  const s = state.activo.slot;
+  const esPropia = (state.modo === "mesa" && esMio(s)) || (state.modo === "solo" && s === "mia");
+  if (!esPropia) return;
+  const sl = slotDe(s);
+  if (!sl || sl.manos.length !== 1) return;      // ya dividido: no
+  const h = sl.manos[0];
+  if (!h || h.length !== 2) return;              // necesita exactamente 2 cartas
+  const up = state.crupier.manos[0][0];
+  if (!up) return;                               // sin carta del crupier, no decide
+  if (recommend(h, up) === "DIVIDIR") dividir(); // parte la mano sola
+}
+
+function seleccionar(s, m) {
+  if (typeof s === "string" && /^[1-7]$/.test(s)) s = Number(s); // "6" -> 6
+  state.activo = { slot: s, mano: m };
+  autoDividirSiToca();
+  render();
+}
+
+function dividir() {
+  const { slot, mano } = state.activo;
+  if (slot === "crupier") { error("El crupier no divide."); return; }
+  const sl = slotDe(slot);
+  const h = sl.manos[mano];
+  if (h.length !== 2) { error("Dividir necesita exactamente 2 cartas."); return; }
+  const [a, b] = h;
+  const iguales = a === b || (["10","J","Q","K"].includes(a) && ["10","J","Q","K"].includes(b));
+  if (!iguales) { error("Las dos cartas tienen que valer lo mismo."); return; }
+  if (sl.manos.length >= 4) { error("Máximo 4 manos."); return; }
+  sl.manos.splice(mano + 1, 0, [h.pop()]);
+  sl.estados.splice(mano + 1, 0, "jugando");
+  render();
+}
+
+function doblar() {
+  const { slot, mano } = state.activo;
+  if (slot === "crupier") { error("El crupier no dobla."); return; }
+  const sl = slotDe(slot);
+  sl.estados[mano] = sl.estados[mano] === "doblado" ? "jugando" : "doblado";
+  render();
+}
+
+function plantarse() {
+  const { slot, mano } = state.activo;
+  if (slot === "crupier") { error("El crupier no se planta a mano."); return; }
+  const sl = slotDe(slot);
+  sl.estados[mano] = sl.estados[mano] === "plantado" ? "jugando" : "plantado";
+  // si hay otra mano sin cerrar, saltar a ella
+  const sig = sl.estados.findIndex((e, i) => i !== mano && e === "jugando");
+  if (sl.estados[mano] === "plantado") {
+    if (sig > -1) state.activo = { slot, mano: sig };
+    else if (state.modo === "solo" && slot === "mia") state.activo = { slot: "otros", mano: 0 };
+  }
+  render();
+}
+
+function setModo(m) {
+  state.modo = m;
+  state.activo = { slot: primerSlot(), mano: 0 };
+  render();
+}
+
+function toggleMio(n) {
+  if (state.mios[n]) {
+    if (misAsientos().length <= 1) { error("Tenés que jugar al menos un asiento."); return; }
+    delete state.mios[n];
+  } else {
+    state.mios[n] = true;
+    state.ocupados[n] = true;
+  }
+  render();
+}
+
+function nuevaMano() {
+  state.crupier = nuevoSlot();
+  state.mia = nuevoSlot();
+state.otros = nuevoSlot();
+state.registro = JSON.parse(localStorage.getItem("bj_registro") || "[]");
+  for (let i = 1; i <= 7; i++) state.asientos[i] = nuevoSlot();
+  state.activo = { slot: primerSlot(), mano: 0 };
+  state.auto = true;
+  render();
+}
+
+function nuevoZapato() { state.contadas = []; localStorage.removeItem(GUARDA); nuevaMano(); }
+
+/* ---------- VOZ ---------- */
+const PALABRAS = {
+  // AS — Chrome suele escribir "haz"/"has" porque suenan igual
+  "as":"A","haz":"A","has":"A","hace":"A","az":"A","ax":"A","ace":"A","ases":"A",
+  "uno":"A","un":"A","1":"A",
+  "dos":"2","2":"2","doz":"2","dose":"2","do":"2",
+  "tres":"3","3":"3","tre":"3","trez":"3","trece":"3",
+  "cuatro":"4","4":"4","catro":"4","quatro":"4","cuatros":"4",
+  "cinco":"5","5":"5","sinco":"5","cincos":"5",
+  "seis":"6","6":"6","sais":"6","seiz":"6","sei":"6","seys":"6",
+  "siete":"7","7":"7","ciete":"7","sietes":"7","siet":"7",
+  "ocho":"8","8":"8","hocho":"8","ochos":"8",
+  "nueve":"9","9":"9","nuebe":"9","nueves":"9","nue":"9",
+  "diez":"10","10":"10","dies":"10","diaz":"10","figura":"10","diego":"10",
+  // JOTA — a veces queda como "j" suelta
+  "jota":"J","j":"J","jot":"J","yota":"J","jack":"J","joda":"J","jotas":"J","jota.":"J",
+  // DAMA / REINA
+  "dama":"Q","damas":"Q","reina":"Q","reyna":"Q","queen":"Q","q":"Q","cu":"Q","quiu":"Q",
+  // REY
+  "rey":"K","reyes":"K","rei":"K","king":"K","k":"K","ka":"K","kay":"K",
+};
+
+/* Si Chrome devuelve numeros pegados ("34", "1010"), los separa en cartas */
+function partirNumeros(tok) {
+  if (!/^\d+$/.test(tok) || tok.length < 2) return null;
+  const out = [];
+  let i = 0;
+  while (i < tok.length) {
+    if (tok.slice(i, i + 2) === "10") { out.push("10"); i += 2; continue; }
+    const d = tok[i];
+    if (d >= "2" && d <= "9") { out.push(d); i++; continue; }
+    if (d === "1") { out.push("A"); i++; continue; }
+    return null;
+  }
+  return out.length ? out : null;
+}
+
+let motorVoz = null;      // motor de Chrome (respaldo)
+let dgSocket = null;      // conexion con Deepgram
+let dgGrabador = null;
+
+const KEYTERMS = ["as","dos","tres","cuatro","cinco","seis","siete","ocho","nueve",
+                  "diez","jota","dama","reina","rey","borrar","paso","stop","auto"];
+
+function dgKey() { return localStorage.getItem("dg_key") || ""; }
+
+/* ================== CÁMARA CON IA ================== */
+function antKey() { return localStorage.getItem("ant_key") || ""; }
+
+function pedirAntKey() {
+  const k = prompt("Pegá tu API key de Anthropic (console.anthropic.com):", antKey());
+  if (k === null) return false;
+  const limpia = k.trim().replace(/\s+/g, "");
+  if (limpia) { localStorage.setItem("ant_key", limpia); avisoVoz("✅ key de cámara guardada"); render(); return true; }
+  localStorage.removeItem("ant_key"); render(); return false;
+}
+
+/* 📷 abre la camara directo — para fotografiar la pantalla del otro celular */
+function sacarFoto() {
+  if (!antKey() && !pedirAntKey()) return;
+  document.getElementById("fotoCam").click();
+}
+/* 🖼️ abre la galeria — para capturas de pantalla */
+function elegirFoto() {
+  if (!antKey() && !pedirAntKey()) return;
+  document.getElementById("fotoIn").click();
+}
+
+const MAXLADO = 1568; // arriba de esto la API achica sola, sin ganar nitidez
+
+/* Foto de una pantalla ajena: casi siempre viene con dominante de color (filtro
+   nocturno, luz del ambiente) y con poco contraste por el brillo del vidrio.
+   Equilibramos los canales y estiramos el contraste antes de mandarla. */
+function corregir(img) {
+  const c = document.createElement("canvas");
+  c.width = img.width; c.height = img.height;
+  const cx = c.getContext("2d");
+  cx.drawImage(img, 0, 0);
+  let d;
+  try { d = cx.getImageData(0, 0, c.width, c.height); } catch (e) { return c; }
+  const p = d.data, n = p.length;
+
+  // 1) balance de blancos: llevamos los tres canales al mismo promedio
+  let sr = 0, sg = 0, sb = 0;
+  for (let i = 0; i < n; i += 4) { sr += p[i]; sg += p[i+1]; sb += p[i+2]; }
+  const px = n / 4, mr = sr/px, mg = sg/px, mb = sb/px, prom = (mr+mg+mb)/3;
+  const kr = mr > 1 ? prom/mr : 1, kg = mg > 1 ? prom/mg : 1, kb = mb > 1 ? prom/mb : 1;
+
+  // 2) contraste: recortamos el 1% mas oscuro y el 1% mas claro y estiramos
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < n; i += 4) {
+    const y = (p[i]*kr*0.299 + p[i+1]*kg*0.587 + p[i+2]*kb*0.114) | 0;
+    hist[y > 255 ? 255 : y < 0 ? 0 : y]++;
+  }
+  const corte = px * 0.01;
+  let bajo = 0, alto = 255, acc = 0;
+  for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc > corte) { bajo = v; break; } }
+  acc = 0;
+  for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc > corte) { alto = v; break; } }
+  const rango = Math.max(1, alto - bajo), g = 255 / rango;
+
+  for (let i = 0; i < n; i += 4) {
+    p[i]   = Math.min(255, Math.max(0, (p[i]  *kr - bajo) * g));
+    p[i+1] = Math.min(255, Math.max(0, (p[i+1]*kg - bajo) * g));
+    p[i+2] = Math.min(255, Math.max(0, (p[i+2]*kb - bajo) * g));
+  }
+  cx.putImageData(d, 0, 0);
+  return c;
+}
+
+/* Recorta un pedazo de la imagen y lo devuelve en JPEG base64, sin achicar de mas */
+function recorte(img, sx, sy, sw, sh) {
+  const k = Math.min(1, MAXLADO / Math.max(sw, sh));
+  const c = document.createElement("canvas");
+  c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+  c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.94).split(",")[1];
+}
+
+/* La mesa entera + franjas a resolucion nativa: en una captura alta y angosta
+   mandar solo la foto completa pierde ancho, y ahi es donde estan las cartas */
+function tomasDe(img) {
+  const W = img.width, H = img.height;
+  const tomas = [{ etiqueta: "mesa completa", b64: recorte(img, 0, 0, W, H) }];
+  if (state.modo !== "mesa") return tomas;
+  const franjas = 3, solape = 0.15;
+  const alto = H / franjas;
+  for (let i = 0; i < franjas; i++) {
+    const y0 = Math.max(0, Math.round(alto * (i - solape)));
+    const y1 = Math.min(H, Math.round(alto * (i + 1 + solape)));
+    // si la franja completa ya entra sin achicar, va entera; si no, la parto al medio
+    if (W <= MAXLADO && (y1 - y0) <= MAXLADO) {
+      tomas.push({ etiqueta: "franja " + (i + 1) + " de " + franjas, b64: recorte(img, 0, y0, W, y1 - y0) });
+    } else {
+      const mitad = Math.round(W * 0.58);
+      tomas.push({ etiqueta: "franja " + (i + 1) + " izquierda", b64: recorte(img, 0, y0, mitad, y1 - y0) });
+      tomas.push({ etiqueta: "franja " + (i + 1) + " derecha", b64: recorte(img, W - mitad, y0, mitad, y1 - y0) });
+    }
+  }
+  return tomas;
+}
+
+function leerFoto(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const lector = new FileReader();
+  lector.onload = (e) => {
+    const img = new Image();
+    img.onload = () => { detectarCartas(tomasDe(img)); };
+    img.src = e.target.result;
+  };
+  lector.readAsDataURL(f);
+  ev.target.value = "";
+}
+
+/* Busca el ultimo objeto JSON balanceado del texto (el modelo razona antes) */
+function ultimoJSON(t) {
+  for (let fin = t.lastIndexOf("}"); fin > -1; fin = t.lastIndexOf("}", fin - 1)) {
+    let prof = 0;
+    for (let i = fin; i >= 0; i--) {
+      if (t[i] === "}") prof++;
+      else if (t[i] === "{") {
+        prof--;
+        if (prof === 0) {
+          const cand = t.slice(i, fin + 1);
+          try { JSON.parse(cand); return cand; } catch (e) { break; }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+async function detectarCartas(tomas) {
+  const btn = document.getElementById("bCam");
+  btn.textContent = "⏳";
+  avisoVoz("📷 leyendo la mesa…");
+
+  const pedido = state.modo === "mesa"
+    ? 'Devolvé las cartas de cada asiento numerado y del crupier. Formato exacto: {"crupier":["6"],"asientos":{"1":["10","7"],"3":["A","K"]}}. Poné solo los asientos que tengan cartas.'
+    : 'Devolvé las cartas del crupier, las MÍAS y las del resto de los jugadores de la mesa. ' +
+      'Mi mano es la que está marcada como tuya/principal, normalmente la del centro o la resaltada. ' +
+      'Todas las cartas de los demás jugadores van juntas en una sola lista "otros" (no importa de quién sea cada una). ' +
+      'Formato exacto: {"crupier":["6"],"jugador":["10","7"],"otros":["K","3","9"]}. ' +
+      'Si no hay más jugadores, dejá "otros" vacío.';
+
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": antKey(),
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-8",
+        max_tokens: 1200,
+        messages: [{
+          role: "user",
+          content: [
+            ...tomas.flatMap(t => ([
+              { type: "text", text: "— " + t.etiqueta + " —" },
+              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: t.b64 } },
+            ])),
+            { type: "text", text:
+              (tomas.length > 1
+                ? 'Las imágenes de arriba son LA MISMA mesa: primero completa y después ampliada por franjas ' +
+                  'de arriba hacia abajo (se solapan un poco). Usá la completa para ubicarte y las franjas para ' +
+                  'leer cada carta, que ahí se ven más grandes. No cuentes dos veces una carta que aparezca en dos franjas. '
+                : '') +
+              'Es la foto de la PANTALLA DE OTRO CELULAR mostrando blackjack en vivo, ya corregida de color y contraste. ' +
+              'Puede tener reflejos, moaré o algo de desenfoque: si una carta no se lee con certeza, no la adivines, marcá "seguro": false. ' +
+              'El crupier está arriba; los jugadores abajo. En los juegos online la carta del crupier suele repetirse ' +
+              'en un recuadro chico en una esquina, con su total al lado: si la ves ahí, usá esa. ' +
+              'Cada mano suele tener una etiqueta con su total: usala para verificar que leíste bien. ' +
+              'Ignorá las cartas boca abajo. Rangos válidos: A,2,3,4,5,6,7,8,9,10,J,Q,K. ' +
+              pedido +
+              ' Trabajá en dos pasos. PASO 1: describí en pocas líneas qué cartas ves en cada posición y ' +
+              'contrastá cada mano con su etiqueta de total; si no coinciden, corregí tu lectura antes de seguir. ' +
+              'PASO 2: en la última línea, el JSON solo, sin comillas de código y sin nada después. ' +
+              'Agregá al JSON la clave "seguro": false si alguna carta te quedó dudosa, o true si las leíste todas con claridad. ' +
+              'Si no llegás a distinguir ninguna carta, devolvé igual el JSON vacío correspondiente.' },
+          ],
+        }],
+      }),
+    });
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error?.message || ("HTTP " + r.status));
+    }
+    const d = await r.json();
+    const txt = (d.content || []).map(x => x.text || "").join("");
+    const crudo = ultimoJSON(txt);
+    if (!crudo) throw new Error("respondió: " + txt.slice(-90));
+    const det = JSON.parse(crudo);
+    aplicarDeteccion(det);
+    if (det.seguro === false) error("Leyó con dudas — revisá las cartas antes de jugar.");
+  } catch (e) {
+    if (String(e).includes("Failed to fetch")) error("El navegador bloqueó la salida (hosting).");
+    else error("Cámara: " + e.message);
+    avisoVoz("✗ no pude leer la foto");
+  }
+  btn.textContent = "📷";
+}
+
+function aplicarDeteccion(d) {
+  // limpia las manos pero conserva el conteo del zapato
+  state.crupier = nuevoSlot();
+  state.mia = nuevoSlot();
+  state.otros = nuevoSlot();
+  for (let i = 1; i <= 7; i++) state.asientos[i] = nuevoSlot();
+
+  let total = 0;
+  const cargar = (slot, cartas) => {
+    (cartas || []).forEach(c => {
+      const r = String(c).toUpperCase().trim();
+      if (!["A","2","3","4","5","6","7","8","9","10","J","Q","K"].includes(r)) return;
+      slotDe(slot).manos[0].push(r);
+      state.contadas.push(r);
+      state.pila.push({ slot, mano: 0, carta: r });
+      total++;
+    });
+  };
+
+  cargar("crupier", d.crupier);
+  if (state.modo === "mesa") {
+    const as = d.asientos || {};
+    Object.keys(as).forEach(n => {
+      const i = parseInt(n);
+      if (i >= 1 && i <= 7) {
+        state.ocupados[i] = true;
+        cargar(i, as[n]);
+      }
+    });
+  } else {
+    cargar("mia", d.jugador || d.player);
+    cargar("otros", d.otros || d.demas);
+  }
+
+  avisoVoz(total ? `📷 leí ${total} cartas — revisalas` : "📷 no encontré cartas");
+  state.activo = { slot: primerSlot(), mano: 0 };
+  render();
+}
+
+async function probarKey() {
+  const key = dgKey();
+  if (!key) { error("Primero cargá la key con 🔑"); return; }
+  avisoVoz("probando la key…");
+  try {
+    const r = await fetch("https://api.deepgram.com/v1/auth/token", {
+      headers: { Authorization: "Token " + key },
+    });
+    if (r.ok) avisoVoz("✅ La key es válida (HTTP " + r.status + ")");
+    else if (r.status === 401) avisoVoz("✗ Key rechazada: no es válida (401)");
+    else if (r.status === 403) avisoVoz("✗ Key sin permisos o sin crédito (403)");
+    else avisoVoz("✗ Deepgram respondió HTTP " + r.status);
+  } catch (e) {
+    avisoVoz("Esta prueba 🔬 no corre desde el navegador, pero el micrófono 🎤 sí. Probá el micrófono directo.");
+  }
+}
+
+function pedirDgKey() {
+  const actual = dgKey();
+  const k = prompt("Pegá tu API key de Deepgram (deepgram.com):", actual);
+  if (k === null) return;
+  const limpia = k.trim().replace(/\s+/g, "");
+  if (limpia) {
+    localStorage.setItem("dg_key", limpia);
+    if (limpia.length < 35 || limpia.length > 45) {
+      error("⚠️ Esa key tiene " + limpia.length + " caracteres. Deepgram usa 40 — parece cortada.");
+      avisoVoz("⚠️ key de " + limpia.length + " caracteres (deberían ser 40)");
+    } else {
+      avisoVoz("✅ key guardada (" + limpia.length + " caracteres, correcto)");
+    }
+  }
+  else { localStorage.removeItem("dg_key"); avisoVoz("key borrada — vuelve al motor de Chrome"); }
+  render();
+}
+
+/* Convierte y baja la frecuencia del audio a 16 kHz PCM 16 bits */
+function aPCM16(buffer, desde, hasta) {
+  const ratio = desde / hasta;
+  const largo = Math.round(buffer.length / ratio);
+  const out = new Int16Array(largo);
+  let iOut = 0, iIn = 0;
+  while (iOut < largo) {
+    const sig = Math.round((iOut + 1) * ratio);
+    let suma = 0, n = 0;
+    for (let i = iIn; i < sig && i < buffer.length; i++) { suma += buffer[i]; n++; }
+    const v = n ? suma / n : 0;
+    out[iOut] = Math.max(-1, Math.min(1, v)) * 0x7fff;
+    iOut++; iIn = sig;
+  }
+  return out.buffer;
+}
+
+let dgAudio = null, dgNodo = null, dgPaquetes = 0, dgRespuestas = 0;
+
+async function arrancarDeepgram(sinKeyterms) {
+  const key = dgKey();
+  if (!key) { error("No hay key de Deepgram."); return false; }
+
+  dgPaquetes = 0; dgRespuestas = 0;
+  dgPaso = (sinKeyterms ? "1b. reintento sin palabras clave" : "1. pidiendo micrófono");
+  arrancarDiag();
+
+  const params = new URLSearchParams({
+    model: "nova-3",
+    language: "es",
+    encoding: "linear16",
+    sample_rate: "16000",
+    channels: "1",
+    punctuate: "false",
+    smart_format: "false",
+    interim_results: "true",
+    endpointing: "200",
+  });
+  if (!sinKeyterms) KEYTERMS.forEach(t => params.append("keyterm", t));
+  const url = "wss://api.deepgram.com/v1/listen?" + params.toString();
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    dgPaso = "2. micrófono OK, abriendo conexión";
+  } catch (e) {
+    dgPaso = "✗ micrófono denegado: " + e.name;
+    error("No pude abrir el micrófono: " + e.message);
+    return false;
+  }
+
+  let ws;
+  try { ws = new WebSocket(url, ["token", key]); }
+  catch (e) {
+    error("La key tiene un formato inválido.");
+    stream.getTracks().forEach(t => t.stop());
+    return false;
+  }
+  dgSocket = ws;
+  let abrio = false;
+
+  const limpiar = () => {
+    if (dgNodo) { try { dgNodo.disconnect(); } catch (e) {} dgNodo = null; }
+    if (dgAudio) { try { dgAudio.close(); } catch (e) {} dgAudio = null; }
+    stream.getTracks().forEach(t => t.stop());
+    dgSocket = null;
+  };
+
+  ws.onopen = async () => {
+    abrio = true;
+    dgPaso = "3. conexión abierta, enviando audio";
+    try {
+      dgAudio = new (window.AudioContext || window.webkitAudioContext)();
+      await dgAudio.resume();
+      const fuente = dgAudio.createMediaStreamSource(stream);
+      dgNodo = dgAudio.createScriptProcessor(4096, 1, 1);
+      const mudo = dgAudio.createGain();
+      mudo.gain.value = 0;
+
+      dgNodo.onaudioprocess = (ev) => {
+        if (ws.readyState !== 1) return;
+        const datos = ev.inputBuffer.getChannelData(0);
+        ws.send(aPCM16(datos, dgAudio.sampleRate, 16000));
+        dgPaquetes++;
+        if (dgPaquetes % 10 === 0) diagnostico();
+      };
+
+      fuente.connect(dgNodo);
+      dgNodo.connect(mudo);
+      mudo.connect(dgAudio.destination);
+      dgPaso = "4. enviando audio";
+      avisoVoz("🔴 conectado" + (sinKeyterms ? " (sin palabras clave)" : "") + " — hablá");
+    } catch (e) {
+      error("No pude procesar el audio: " + e.message);
+      pararVoz();
+    }
+  };
+
+  ws.onmessage = (ev) => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch (e) { return; }
+    if (d.type === "Error" || d.err_code) {
+      error("Deepgram: " + (d.description || d.err_msg || d.err_code));
+      return;
+    }
+    if (d.type === "Results") {
+      dgRespuestas++;
+      dgPaso = "5. Deepgram responde";
+      const t = d.channel?.alternatives?.[0]?.transcript || "";
+      if (d.is_final) {
+        if (t.trim()) procesarVoz(t);   // carta/comando: recién acá se carga
+        else diagnostico();
+      } else {
+        if (t.trim()) avisoVoz("🎧 …" + t.trim());  // feedback al instante, sin cargar todavía
+      }
+    }
+  };
+
+  ws.onclose = (ev) => {
+    dgCierre = ev.code + (ev.reason ? " (" + ev.reason + ")" : "") + (sinKeyterms ? " [sin kt]" : " [con kt]");
+    diagnostico();
+    limpiar();
+    if (!state.oyendo) return;
+    if (!abrio && !sinKeyterms) { dgPaso = "reintento sin palabras clave"; avisoVoz("reintentando…"); arrancarDeepgram(true); return; }
+    if (!abrio) dgPaso = "✗ rechazado, código " + ev.code;
+    else dgPaso = "✗ cortado, código " + ev.code;
+    if (!abrio) error("Deepgram rechazó la conexión (código " + ev.code + ")" + (ev.reason ? ": " + ev.reason : ""));
+    else if (ev.code !== 1000) error("Se cortó (código " + ev.code + ")" + (ev.reason ? ": " + ev.reason : ""));
+    state.oyendo = false;
+    render();
+  };
+
+  ws.onerror = () => {};
+  return true;
+}
+
+let dgPaso = "-", dgTimer = null, dgCierre = "";
+
+function diagnostico() {
+  const el = document.getElementById("diag");
+  if (!el) return;
+  const nombres = ["conectando…", "ABIERTO", "cerrando", "cerrado"];
+  const st = dgSocket ? (nombres[dgSocket.readyState] || "?") : "sin socket";
+  el.textContent = `${dgPaso} | socket: ${st} | audio: ${dgPaquetes} | resp: ${dgRespuestas}` +
+    (dgCierre ? ` | CIERRE: ${dgCierre}` : "");
+}
+
+function arrancarDiag() {
+  clearInterval(dgTimer);
+  dgTimer = setInterval(diagnostico, 500);
+  diagnostico();
+}
+
+function pararDiag() { clearInterval(dgTimer); dgTimer = null; }
+
+function pararVoz() {
+  state.oyendo = false;
+  if (dgNodo) { try { dgNodo.disconnect(); } catch (e) {} dgNodo = null; }
+  if (dgAudio) { try { dgAudio.close(); } catch (e) {} dgAudio = null; }
+  if (dgSocket) { try { dgSocket.close(1000); } catch (e) {} }
+  dgGrabador = null; dgSocket = null;
+  if (motorVoz) { try { motorVoz.stop(); } catch (e) {} motorVoz = null; }
+  pararDiag();
+  avisoVoz("micrófono apagado");
+  render();
+}
+
+function avisoVoz(t) {
+  const el = document.getElementById("oido");
+  if (el) el.textContent = t;
+}
+
+function procesarVoz(texto) {
+  const limpio = texto.toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ");
+  let puestas = [];
+  let mando = false; // ¿se ejecutó alguna orden (paso/stop/auto/borrar)?
+  for (const p of limpio.split(/\s+/).filter(Boolean)) {
+    if (["borrar","borra","deshacer","atras","atrás","saca","sacar","quita","quitar"].includes(p)) { deshacerUltima(); mando = true; continue; }
+    if (p.startsWith("pas") || ["salta","salto","saltar","siguiente","proximo","próximo","avanza","avanzar","baso","vaso","bajo","paco","pao"].includes(p)) { saltar(); mando = true; continue; }
+    if (p.startsWith("stop") || ["estop","estó","estoc","stock","para","pare","quieto","alto","frena","freno","fija","fijo"].includes(p)) { fijar(); mando = true; continue; }
+    if (["auto","automatico","automático","sigue","segui","seguí","continua","continuar","normal"].includes(p)) { autoSi(); mando = true; continue; }
+    if (["dividir","divide","divido","division","división","separar","separa","split","partir","parti","partí"].includes(p)) { dividir(); mando = true; continue; }
+    if (["doblar","dobla","doble","doblo","double"].includes(p)) { doblar(); mando = true; continue; }
+    if (["plantar","planta","plantarse","plantate","plantado","plantao","plantó","quedo","quedar","stand"].includes(p)) { plantarse(); mando = true; continue; }
+    const c = PALABRAS[p];
+    if (c) { agregarCarta(c); puestas.push(c); continue; }
+    const varias = partirNumeros(p);
+    if (varias) varias.forEach(x => { agregarCarta(x); puestas.push(x); });
+  }
+  if (puestas.length) avisoVoz("🎤 " + puestas.join("  "));
+  else if (!mando && limpio.trim()) avisoVoz("· no entendí: " + texto.trim());
+}
+
+async function toggleVoz() {
+  if (state.oyendo) { pararVoz(); return; }
+
+  // Con key de Deepgram usamos ese motor; si no, el de Chrome
+  if (dgKey()) {
+    state.oyendo = true;
+    render();
+    const ok = await arrancarDeepgram();
+    if (!ok) { state.oyendo = false; render(); }
+    return;
+  }
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { error("Este navegador no soporta voz. Usá Chrome."); return; }
+  motorVoz = new SR();
+  motorVoz.lang = "es-AR";
+  motorVoz.continuous = true;
+  motorVoz.interimResults = false;
+  state.oyendo = true;
+  motorVoz.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++)
+      if (e.results[i].isFinal) procesarVoz(e.results[i][0].transcript);
+  };
+  motorVoz.onerror = (ev) => {
+    if (ev.error === "not-allowed") { error("Tenés que permitir el micrófono."); pararVoz(); }
+    else if (ev.error !== "no-speech" && ev.error !== "aborted") avisoVoz("error: " + ev.error);
+  };
+  motorVoz.onend = () => { if (state.oyendo && motorVoz) { try { motorVoz.start(); } catch (e) {} } };
+  try { motorVoz.start(); avisoVoz("🔴 escuchando (Chrome)"); render(); }
+  catch (e) { error("No arrancó el micrófono."); pararVoz(); }
+}
+
+/* ---------- REGISTRO DE MANOS ---------- */
+function anotar(res) {
+  let mano = [], asi = null;
+  if (state.modo === "solo") mano = state.mia.manos[0];
+  else if (esMio(state.activo.slot)) { mano = manoActiva(); asi = state.activo.slot; }
+  else { const a = misAsientos()[0]; if (a) { mano = state.asientos[a].manos[0]; asi = a; } }
+  const rc = state.contadas.reduce((a, r) => a + hiLoValue(r), 0);
+  const rest = Math.max(0.5, state.mazos - state.contadas.length / 52);
+  state.registro.push({
+    r: res,
+    t: mano.length ? handValue(mano) : null,
+    a: asi,
+    up: state.crupier.manos[0][0] || null,
+    tc: Math.round((rc / rest) * 10) / 10,
+    h: new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+  });
+  guardarRegistro();
+  nuevaMano();
+}
+
+function guardarRegistro() {
+  try { localStorage.setItem("bj_registro", JSON.stringify(state.registro)); } catch (e) {}
+}
+
+function borrarRegistro() {
+  if (!confirm("¿Borrar todo el registro de manos?")) return;
+  state.registro = [];
+  guardarRegistro();
+  render();
+}
+
+function resumen() {
+  const g = state.registro.filter(x => x.r === "G").length;
+  const p = state.registro.filter(x => x.r === "P").length;
+  const e = state.registro.filter(x => x.r === "E").length;
+  return { g, p, e, total: state.registro.length, dif: g - p };
+}
+
+function error(m) {
+  const e = document.getElementById("err");
+  e.textContent = m; e.style.display = "block";
+  setTimeout(() => e.style.display = "none", 3000);
+}
+
+/* ============ RENDER ============ */
+function chips(cards, s, m, esD) {
+  return cards.map((c, i) =>
+    `<span class="mini${esD ? " d" : ""}" onclick="event.stopPropagation(); quitarCarta('${s}',${m},${i})">${c}<b style="opacity:.5; margin-left:3px;">✕</b></span>`
+  ).join("");
+}
+
+function badge(estado) {
+  if (estado === "plantado") return `<span class="badge b-plant">PLANTADO</span>`;
+  if (estado === "doblado") return `<span class="badge b-dobl">DOBLÓ</span>`;
+  return "";
+}
+
+function dibujarSlot(s, opciones = {}) {
+  const sl = slotDe(s);
+  return sl.manos.map((h, m) => {
+    const act = state.activo.slot === s && state.activo.mano === m;
+    const val = h.length ? handValue(h) : "—";
+    const pasado = h.length && handValue(h) > 21;
+    const et = sl.manos.length > 1
+      ? `${opciones.titulo ? opciones.titulo + " · " : ""}mano ${m + 1}`
+      : (opciones.titulo || "");
+    return `<div class="slot${act ? " act" : ""}${opciones.mio ? " mio" : ""}" onclick="seleccionar('${s}',${m})">
+      <div class="cab">
+        <span>${et}${pasado ? ' <span class="badge b-pas">SE PASÓ</span>' : ""} ${badge(sl.estados[m])}</span>
+        <span class="tot">${val}</span>
+      </div>
+      <div class="cartas">${chips(h, s, m, s === "crupier")}</div>
+    </div>`;
+  }).join("");
+}
+
+function render() {
+  guardarEstado();
+  const bm = document.getElementById("bMic");
+  bm.className = "btn" + (state.oyendo ? " r" : "");
+  const conDg = !!dgKey();
+  bm.textContent = state.oyendo
+    ? "🔴 ESCUCHANDO — tocá para parar"
+    : (conDg ? "🎤 MICRÓFONO · Deepgram" : "🎤 MICRÓFONO · Chrome");
+  const bk = document.getElementById("bKey");
+  if (bk) { bk.className = "btn" + (conDg ? " on" : ""); }
+  const bc = document.getElementById("bCam");
+  if (bc) { bc.className = "btn" + (antKey() ? " on" : ""); }
+  document.getElementById("bAuto").className = "btn" + (state.auto ? " on" : " off");
+  document.getElementById("bAuto").textContent = state.auto ? "➡️ AUTO" : "🔒 FIJO";
+  document.getElementById("m1").className = "btn" + (state.modo === "solo" ? " on" : "");
+  document.getElementById("m7").className = "btn" + (state.modo === "mesa" ? " on" : "");
+  document.getElementById("zonaMesa").style.display = state.modo === "mesa" ? "block" : "none";
+  document.getElementById("selAsiento").style.display = state.modo === "mesa" ? "block" : "none";
+
+  document.getElementById("zonaMia").style.display = state.modo === "solo" ? "block" : "none";
+  document.getElementById("slotCrupier").innerHTML = dibujarSlot("crupier", { titulo: "" });
+  if (state.modo === "solo") {
+    document.getElementById("misManos").innerHTML = dibujarSlot("mia", { mio: true, titulo: "" });
+    document.getElementById("zonaOtros").innerHTML = dibujarSlot("otros", { titulo: "" });
+  }
+
+  if (state.modo === "mesa") {
+    let vis = ORDEN_VISUAL.filter(i => state.ocupados[i] || state.mios[i]);
+    const n = vis.length;
+    let h = "";
+    vis.forEach((i, pos) => {
+      // curva: los del medio quedan mas lejos del crupier
+      const centro = (n - 1) / 2;
+      const dist = centro === 0 ? 0 : Math.abs(pos - centro) / centro;
+      const baja = Math.round((1 - dist * dist) * 18);
+      const mio = !!state.mios[i];
+      const key = i;
+      const sl = slotDe(key);
+      let cuerpo = sl.manos.map((mano, m) => {
+        const act = String(state.activo.slot) === String(key) && state.activo.mano === m;
+        const val = mano.length ? handValue(mano) : "—";
+        const bust = mano.length && handValue(mano) > 21;
+        const est = sl.estados[m];
+        const etq = est === "plantado" ? `<div class="as-e b-plant">PLANT</div>`
+                  : est === "doblado" ? `<div class="as-e b-dobl">DOBLÓ</div>` : "";
+        const chips = mano.map((c, ci) =>
+          `<span class="chip" onclick="event.stopPropagation(); quitarCarta('${key}',${m},${ci})">${c}<b style="opacity:.5;">✕</b></span>`
+        ).join("");
+        return `<div class="${m > 0 ? "as-sep" : ""}" onclick="event.stopPropagation(); seleccionar('${key}',${m})"
+                 style="${act ? "outline:2px solid #c9a227; outline-offset:1px; border-radius:4px;" : ""}">
+          ${sl.manos.length > 1 ? `<div class="as-n">m${m + 1}</div>` : ""}
+          <div class="as-t${bust ? " bust" : ""}">${val}</div>${etq}${chips}</div>`;
+      }).join("");
+      const activoAqui = String(state.activo.slot) === String(key);
+      h += `<div style="transform:translateY(${baja}px);">
+        <div class="as${activoAqui ? " act" : ""}${mio ? " mio" : ""}" onclick="seleccionar('${key}',0)">
+          <div class="as-n">${mio ? "⭐" : ""}${i}</div>${cuerpo}
+        </div></div>`;
+    });
+    document.getElementById("asientos").innerHTML = `<div class="arco">${h}</div>`;
+    document.getElementById("yoSel").innerHTML = ORDEN_VISUAL.map(n =>
+      `<div class="btn${state.mios[n] ? " on" : ""}" style="padding:4px 0; font-size:11px;" onclick="toggleMio(${n})">${state.mios[n] ? "⭐" : ""}${n}</div>`
+    ).join("");
+    const filaOcup = (alto) => ORDEN_VISUAL.map(n =>
+      `<div class="btn${state.ocupados[n] || state.mios[n] ? " on" : " off"}" style="padding:${alto} 0; font-size:11px;" onclick="toggleOcupado(${n})">${state.mios[n] ? "⭐" : state.ocupados[n] ? n : "·"}</div>`
+    ).join("");
+    document.getElementById("ocupSel").innerHTML = filaOcup("6px");
+    document.getElementById("ocupSel2").innerHTML = filaOcup("4px");
+  }
+
+  // Teclado
+  document.getElementById("teclado").innerHTML =
+    ["A","2","3","4","5","6","7","8","9","10","J","Q","K"].map(r =>
+      `<div class="tecla" onclick="agregarCarta('${r}')">${r}</div>`).join("");
+
+  const nom = nombreSlot(state.activo.slot, state.activo.mano);
+  document.getElementById("destino").textContent = nom.toUpperCase();
+  document.getElementById("quien").textContent = nom.toUpperCase();
+
+  // Botones de accion
+  const esCrup = state.activo.slot === "crupier";
+  const h = manoActiva();
+  const puedeDiv = !esCrup && h.length === 2 &&
+    (h[0] === h[1] || (["10","J","Q","K"].includes(h[0]) && ["10","J","Q","K"].includes(h[1])));
+  document.getElementById("bDiv").className = "btn" + (puedeDiv ? "" : " off");
+  document.getElementById("bDob").className = "btn" + (esCrup ? " off" : "");
+  document.getElementById("bPla").className = "btn" + (esCrup ? " off" : "");
+
+  // Conteo
+  const rc = state.contadas.reduce((s, r) => s + hiLoValue(r), 0);
+  const rest = Math.max(0.5, state.mazos - state.contadas.length / 52);
+  const tc = Math.round((rc / rest) * 10) / 10;
+  document.getElementById("rc").textContent = (rc > 0 ? "+" : "") + rc;
+  document.getElementById("tc").textContent = (tc > 0 ? "+" : "") + tc;
+  document.getElementById("info").textContent =
+    `${state.contadas.length} cartas · quedan ~${rest.toFixed(1)} mazos`;
+  [8, 6, 4].forEach(n => { const el = document.getElementById("mz" + n); if (el) el.className = "btn" + (state.mazos === n ? " on" : ""); });
+
+  // Registro
+  const rs = resumen();
+  document.getElementById("resumen").innerHTML =
+    `<b style="color:#4fae63;">${rs.g}</b> ganadas · <b style="color:#e06a4f;">${rs.p}</b> perdidas · ${rs.e} empates
+     &nbsp;|&nbsp; balance <b style="color:${rs.dif > 0 ? "#4fae63" : rs.dif < 0 ? "#e06a4f" : "#9fc2b0"};">${rs.dif > 0 ? "+" : ""}${rs.dif}</b>`;
+  document.getElementById("listaReg").innerHTML = state.registro.length
+    ? state.registro.slice().reverse().map(x => {
+        const col = x.r === "G" ? "#4fae63" : x.r === "P" ? "#e06a4f" : "#9fc2b0";
+        const et = x.r === "G" ? "GANÓ" : x.r === "P" ? "PERDIÓ" : "EMPATE";
+        return `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #1c4433; font-size:11px;">
+          <span style="color:${col}; font-weight:bold; width:52px;">${et}</span>
+          <span style="color:#9fc2b0;">mano ${x.t ?? "—"} vs ${x.up ?? "—"}</span>
+          <span style="color:#c9a227;">TC ${x.tc > 0 ? "+" : ""}${x.tc}</span>
+          <span style="color:#7f9c8c;">${x.h}</span></div>`;
+      }).join("")
+    : `<div style="color:#7f9c8c; font-size:11px;">Todavía no anotaste ninguna mano.</div>`;
+
+  // Recomendacion — sobre MI mano activa; si la activa no es mia, la primera mia sin cerrar
+  const panel = document.getElementById("rec");
+  let recSlot = null, recMano = 0;
+  if (esMio(state.activo.slot)) {
+    recSlot = state.activo.slot; recMano = state.activo.mano;
+  } else if (state.modo === "solo") {
+    recSlot = "mia"; recMano = 0;
+  } else {
+    for (const a of misAsientos()) {
+      const idx = state.asientos[a].estados.findIndex(e => e === "jugando");
+      if (idx > -1) { recSlot = a; recMano = idx; break; }
+    }
+    if (recSlot === null && misAsientos().length) { recSlot = misAsientos()[0]; recMano = 0; }
+  }
+
+  const miSlot = recSlot === null ? null : slotDe(recSlot);
+  const miMano = miSlot ? (miSlot.manos[recMano] || miSlot.manos[0]) : [];
+  const miEstado = miSlot ? miSlot.estados[recMano] : "jugando";
+  const up = state.crupier.manos[0][0];
+  // con varios asientos propios, aclarar cual
+  const varias = state.modo === "mesa" && (misAsientos().length > 1 || (miSlot && miSlot.manos.length > 1));
+  const pref = varias && recSlot !== null
+    ? "A" + recSlot + (miSlot.manos.length > 1 ? "·m" + (recMano + 1) : "") + " · " : "";
+
+  let txt = null, col = "#7aa6c2";
+  if (miEstado === "plantado") { txt = "PLANTADO"; col = "#4fae63"; }
+  else if (miEstado === "doblado") { txt = "DOBLÓ — una carta más"; col = "#c9a227"; }
+  else {
+    txt = recommend(miMano, up);
+    col = txt === "PEDIR" ? "#e2854a" : txt === "PLANTARSE" ? "#4fae63"
+        : txt === "DOBLAR" ? "#c9a227" : txt === "DIVIDIR" ? "#9b6dc4" : "#c0563f";
+  }
+  if (txt) {
+    const full = pref + txt;
+    panel.style.display = "block";
+    panel.style.borderColor = col; panel.style.color = col;
+    panel.style.fontSize = full.length > 12 ? "18px" : "28px";
+    panel.textContent = full;
+  } else panel.style.display = "none";
+}
+
+render();
+</script>
+</body>
+</html>
